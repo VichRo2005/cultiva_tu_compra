@@ -1,1 +1,1 @@
-# inteligencia_mercado
+# Cultiva Tu Compra (CuTuCo)
