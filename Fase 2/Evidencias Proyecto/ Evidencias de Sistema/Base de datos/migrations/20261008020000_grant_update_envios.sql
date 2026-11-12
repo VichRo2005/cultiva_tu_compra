@@ -1,0 +1,36 @@
+-- ============================================================================
+-- CuTuCo — El vendedor puede actualizar el envío de sus pedidos.
+--
+-- PROBLEMA QUE RESUELVE (reproducido contra la base local)
+--   La migración base otorgó a `authenticated` sólo lectura sobre `envios`:
+--
+--     grant select on public."pedidos", public."envios",
+--                      public."detalles_pedido", public."pagos" to authenticated;
+--
+--   pero declaró la policy `envios_update_productor_admin`, que autoriza
+--   exactamente al administrador y al productor dueño del pedido. Sin el GRANT
+--   de tabla, esa policy nunca se evalúa: PostgreSQL responde ANTES con
+--
+--     ERROR:  permission denied for table envios
+--     HINT:   Grant the required privileges to the current role with:
+--             GRANT UPDATE ON public.envios TO authenticated;
+--
+--   Consecuencia: las tres acciones de entrega del vendedor eran imposibles
+--   desde PostgREST — marcar En Tránsito, marcar Entregado y marcar Entrega
+--   fallida — aunque su UI y sus servicios ya existen.
+--
+-- ALCANCE
+--   Sólo se añade el privilegio que faltaba. El control de acceso NO se relaja:
+--   quién puede tocar qué fila sigue decidiéndolo la policy ya existente
+--   `envios_update_productor_admin` (admin o `pr.productor_id` del pedido) y las
+--   columnas siguen protegidas por los triggers del esquema:
+--     * `trg_validar_transicion_envio`      máquina de estados + generación del
+--                                           código + motivo obligatorio del fallo.
+--     * `trg_proteger_datos_criticos_envio` inmutabilidad de pedido_id,
+--                                           repartidor_id, tarifa_fija y de la
+--                                           trazabilidad.
+--   No se concede INSERT ni DELETE: el envío lo crea el trigger
+--   `trg_crear_envio_al_pagar` al confirmarse el pago.
+-- ============================================================================
+
+grant update on public."envios" to authenticated;
