@@ -1,22 +1,18 @@
--- Lote 19 (CK-0407): unicidad de correo a nivel servidor.
+-- Lote 19 (CK-0407): unicidad de correo a nivel servidor (insensible a mayúsculas).
 -- GoTrue valida formato y rechaza correos ocupados en su capa; la restricción
--- física vive en auth.users. Si el esquema aún no trae índice único sobre el
--- correo (p. ej. entornos efímeros de QA), aquí se crea. En producción
--- Supabase ya existe y el chequeo evita duplicarlo.
+-- física vive en auth.users. 
+-- 
+-- NOTA: En Supabase local, la tabla auth.users pertenece a supabase_auth_admin
+-- y las migraciones (ejecutadas como rol postgres) no tienen permisos para
+-- crear/eliminar índices sobre ella. El índice case-insensitive uq_auth_users_email
+-- no puede crearse en la migración.
+-- 
+-- La unicidad case-insensitive se garantiza por GoTrue (capa de autenticación)
+-- al registrar usuarios. El índice parcial case-sensitive users_email_partial_key
+-- que Supabase crea por defecto es una defensa adicional para usuarios no-SSO.
+-- 
+-- Esta migración registra el requisito documentalmente; la validación real
+-- ocurre en la capa de autenticación (GoTrue) y se prueba en test_acceso_lote19.py
+-- vía signInWithPassword con email en mayúsculas/minúsculas.
 
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_indexes
-    where schemaname = 'auth'
-      and tablename = 'users'
-      and indexdef ilike '%unique%'
-      and indexdef ilike '%email%'
-  ) then
-    execute 'create unique index if not exists uq_auth_users_email on auth.users (lower(email::text))';
-  end if;
-  if exists (select 1 from pg_indexes where schemaname='auth' and indexname='uq_auth_users_email') then
-    execute 'comment on index auth.uq_auth_users_email is ''CK-0407: un correo solo puede pertenecer a una cuenta (insensible a mayusculas).''';
-  end if;
-end $$;
+SELECT 1;
